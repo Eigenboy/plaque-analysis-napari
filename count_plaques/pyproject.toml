@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plaque-count-napari"
+version = "0.1.0"
+description = "Count and edit plaque masks from a plate image and saved agar mask."
+requires-python = ">=3.13"
+dependencies = [
+  "matplotlib",
+  "plaque-analysis-napari>=0.2.0",
+  "scipy",
+  "scikit-image",
+  "tifffile",
+]
+
+[project.entry-points."napari.manifest"]
+plaque-count-napari = "plaque_count_napari:napari.yaml"
+
+[tool.setuptools.packages.find]
+include = ["plaque_count_napari*"]
+
+[tool.setuptools.package-data]
+plaque_count_napari = ["napari.yaml"]

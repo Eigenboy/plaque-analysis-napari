@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plaque-analysis-napari"
+version = "0.2.0"
+description = "Review the agar region of a full-plate image in Napari."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+  "napari[pyqt6]==0.10.0",
+  "numpy",
+  "opencv-python-headless==4.11.0.86",
+  "qtpy",
+]
+
+[project.entry-points."napari.manifest"]
+plaque-analysis-napari = "plaque_analysis_napari:napari.yaml"
+
+[tool.setuptools.packages.find]
+include = ["plaque_analysis_napari*"]
+
+[tool.setuptools.package-data]
+plaque_analysis_napari = ["napari.yaml"]

@@ -1,0 +1,10 @@
+name: plaque-count-napari
+display_name: Plaque Counting
+contributions:
+  commands:
+    - id: plaque-count-napari.count_plaques
+      title: Open the plaque counting widget
+      python_name: plaque_count_napari._dock_widget:CountControls
+  widgets:
+    - command: plaque-count-napari.count_plaques
+      display_name: Count Plaques

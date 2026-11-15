@@ -1,0 +1,10 @@
+name: plaque-analysis-napari
+display_name: Plaque Analysis
+contributions:
+  commands:
+    - id: plaque-analysis-napari.agar_region
+      title: Open the agar region widget
+      python_name: plaque_analysis_napari._dock_widget:PlateControls
+  widgets:
+    - command: plaque-analysis-napari.agar_region
+      display_name: Agar Region
