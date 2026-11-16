@@ -63,10 +63,15 @@ Click **Edit boundary** to show the vertices. Drag a handle to move that part
 of the outline. Napari’s **Insert vertex** and **Remove vertex** tools let you
 add or remove handles. Use Napari’s **Pan/zoom** tool to return to navigation.
 
+If automatic detection fails, click **Draw boundary**. Hold down the left
+mouse button and trace the agar edge. Release to close the outline, then use
+**Edit boundary** to adjust it or **Export agar mask** to save it.
+
 **Export agar mask** saves a TIFF to the `out` subfolder of the image's folder.
-The export follows your edited boundary. An export before any edits uses the
-original automatic mask. The mask has the same dimensions as the source image. Pixels inside the
-counting region are 1 and excluded pixels are 0. Napari displays the image
+The export follows your edited boundary. When automatic detection succeeds, an
+export before any edits uses the detected mask. The mask has the same
+dimensions as the source image. Pixels inside the counting region are 1 and
+excluded pixels are 0. Napari displays the image
 at its native bit depth with a contrast stretch for viewing.
 
 The detector uses the ChemiDoc workflow's outer-dish fit, inner-rim fit, and

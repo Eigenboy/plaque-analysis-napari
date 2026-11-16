@@ -79,15 +79,8 @@ def _dish_ellipse(raw):
     return cv2.fitEllipse(points)
 
 
-def _agar_mask(gray, dish):
-    # Find the inner dark rim along radial spokes. Ignore spokes where ink or texture
-    # produces an edge away from the typical rim distance.
-    (x, y), diameters, _ = dish
-    radius = min(diameters) / 2
-    angles = np.linspace(0, 2 * np.pi, 360, endpoint=False)
-    radii = np.arange(0.89 * radius, 0.947 * radius, dtype=np.float32)
-    if radii.size < 12:
-        raise ValueError("The dish is too small to resolve the inner agar rim.")
+def _sample_rim_edges(gray, center, angles, radii):
+    x, y = center
     xs = (x + np.cos(angles[:, None]) * radii).astype(np.float32)
     ys = (y + np.sin(angles[:, None]) * radii).astype(np.float32)
     values = cv2.remap(gray, xs, ys, cv2.INTER_LINEAR)
@@ -95,12 +88,53 @@ def _agar_mask(gray, dish):
     best = np.argmax(fall, axis=1) + 3
     edge = np.column_stack((xs[np.arange(best.size), best], ys[np.arange(best.size), best]))
     strong = fall.max(axis=1)
-    usable = ((abs(radii[best] - np.median(radii[best])) < 0.017 * radius)
-              & (strong > 0.35 * np.median(strong))
+    usable = ((strong > max(0, 0.35 * np.median(strong)))
               & (best > 3) & (best < radii.size - 4))
-    if np.count_nonzero(usable) < angles.size // 2:
-        raise ValueError("Could not locate the inner agar rim in the image.")
-    center, diameters, angle = cv2.fitEllipse(edge[usable])
+    return radii[best], edge, usable
+
+
+def _fit_inner_rim(gray, center, radius):
+    angles = np.linspace(0, 2 * np.pi, 360, endpoint=False)
+    radii = np.arange(0.89 * radius, 0.947 * radius, dtype=np.float32)
+    if radii.size < 12:
+        raise ValueError("The dish is too small to resolve the inner agar rim.")
+
+    distances, edges, usable = _sample_rim_edges(gray, center, angles, radii)
+    usable &= abs(distances - np.median(distances)) < 0.017 * radius
+    if usable.sum() >= angles.size // 2:
+        return cv2.fitEllipse(edges[usable])
+
+    # A displaced or slightly elliptical rim is farther out on some spokes.
+    # Widen the search and reject edges that disagree with a smooth radial fit.
+    radii = np.arange(0.85 * radius, 0.97 * radius, dtype=np.float32)
+    distances, edges, candidates = _sample_rim_edges(gray, center, angles, radii)
+    basis = np.column_stack((
+        np.ones_like(angles), np.cos(angles), np.sin(angles),
+        np.cos(2 * angles), np.sin(2 * angles),
+    ))
+    usable = candidates
+    error = "Could not locate the inner agar rim in the image."
+    for _ in range(4):
+        if usable.sum() < angles.size // 2:
+            raise ValueError(error)
+        coefficients = np.linalg.lstsq(basis[usable], distances[usable], rcond=None)[0]
+        usable = candidates & (abs(distances - basis @ coefficients) < 0.014 * radius)
+
+    # Require support around the dish, including on arcs affected by ink or glare.
+    if usable.sum() < angles.size // 2 or np.any(usable.reshape(4, -1).sum(axis=1) < 18):
+        raise ValueError(error)
+    ellipse = cv2.fitEllipse(edges[usable])
+    fitted_center, fitted_diameters, _ = ellipse
+    offset = np.linalg.norm(np.subtract(fitted_center, center))
+    if offset + max(fitted_diameters) / 2 >= radius:
+        raise ValueError(error)
+    return ellipse
+
+
+def _agar_mask(gray, dish):
+    dish_center, dish_diameters, _ = dish
+    radius = min(dish_diameters) / 2
+    center, diameters, angle = _fit_inner_rim(gray, dish_center, radius)
     inset = max(3, round(radius * 0.013))
     axes = tuple(round(d / 2) - inset for d in diameters)
     mask = np.zeros(gray.shape, np.uint8)

@@ -33,7 +33,7 @@ def measure_plaques(labels):
     return ids, areas, ratios
 
 
-def save_histogram(destination, values, xlabel, empty_message):
+def save_histogram(destination, values, xlabel, empty_message, *, total_count):
     from matplotlib import rc_context
     from matplotlib.backends.backend_agg import FigureCanvasAgg
     from matplotlib.figure import Figure
@@ -51,6 +51,10 @@ def save_histogram(destination, values, xlabel, empty_message):
     }):
         figure = Figure(figsize=(6, 4), layout="constrained", facecolor="white")
         FigureCanvasAgg(figure)
+        title = f"Total plaques: {total_count:,}"
+        if values.size < total_count:
+            title += f" ({values.size:,} plotted)"
+        figure.suptitle(title, fontsize=13)
         axes = figure.subplots()
         axes.set_facecolor("white")
         axes.set(xlabel=xlabel, ylabel="Plaque count")
@@ -78,6 +82,7 @@ def save_histogram(destination, values, xlabel, empty_message):
 
 def export_plaque_statistics(image_path, labels):
     ids, areas, ratios = measure_plaques(labels)
+    total_count = len(ids)
     output = image_path.parent / "out"
     output.mkdir(exist_ok=True)
     stem = image_path.stem
@@ -95,11 +100,14 @@ def export_plaque_statistics(image_path, labels):
                 (plaque_id, area, ratio if np.isfinite(ratio) else "")
                 for plaque_id, area, ratio in zip(ids, areas, ratios)
             )
-        save_histogram(staging / area_name, areas, "Plaque area (px²)", "No plaques")
+        save_histogram(
+            staging / area_name, areas, "Plaque area (px²)", "No plaques", total_count=total_count,
+        )
         save_histogram(
             staging / ratio_name, ratios[np.isfinite(ratios)],
             "Plaque aspect ratio (major/minor)", "No defined aspect ratios",
+            total_count=total_count,
         )
         for name in (csv_name, area_name, ratio_name):
             (staging / name).replace(output / name)
-    return len(ids)
+    return total_count
