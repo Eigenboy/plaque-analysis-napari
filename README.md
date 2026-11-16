@@ -1,6 +1,52 @@
 # Plaque Analysis for Napari
 
-Start Napari from Terminal.
+Two Napari plugins for full-plate plaque images. **Agar Region** lets you
+review and export the area to count. **Count Plaques** detects plaques within
+that area and lets you edit the masks and export statistics.
+
+## Install from GitHub
+
+### 1. Set up Conda
+
+If you don't have Conda, follow the [Conda installation guide](https://docs.conda.io/projects/conda/en/stable/user-guide/install/)
+for your operating system. Open a new terminal after installing and check that
+`conda --version` works.
+
+### 2. Download the source code
+
+If you have Git, clone the repository and enter the project folder.
+
+```sh
+git clone https://github.com/Eigenboy/plaque-analysis-napari.git
+cd plaque-analysis-napari
+```
+
+You can also use **Code → Download ZIP** on the
+[repository page](https://github.com/Eigenboy/plaque-analysis-napari).
+Extract the ZIP and use `cd` to enter the extracted folder in your terminal.
+For example, if you extracted it in Downloads on macOS, run
+`cd ~/Downloads/plaque-analysis-napari-main`.
+
+### 3. Create the environment and install both plugins
+
+Run these commands from the project folder that contains `pyproject.toml`
+and `count_plaques/`. The install command also installs Napari and its
+required dependencies.
+
+```sh
+conda create -n plaque_analysis_napari python=3.13 pip
+conda activate plaque_analysis_napari
+python -m pip install -e . -e ./count_plaques
+```
+
+Keep the downloaded project folder in place. The editable installation uses
+the source files in that folder.
+
+### 4. Open Napari
+
+With the environment active, run `napari`. Open **Agar Region (Plaque Analysis)**
+or **Count Plaques (Plaque Counting)** from Napari's **Plugins** menu.
+In a new terminal, activate the environment before launching Napari.
 
 ```sh
 conda activate plaque_analysis_napari
@@ -80,8 +126,7 @@ Counting reads the selected agar mask from disk. If you export a revised mask
 to the same path, **Count plaques** uses the updated file. It prompts before
 replacing the plaque layer.
 
-## Reinstall the plugin
+## Reinstall the plugins
 
-From this project directory, with the environment active, run
-`python -m pip install -e . -e ./count_plaques`. For a fresh environment, create
-`plaque_analysis_napari` with Python 3.13 and pip before installing.
+From the project folder, activate `plaque_analysis_napari` and run
+`python -m pip install -e . -e ./count_plaques` again.
