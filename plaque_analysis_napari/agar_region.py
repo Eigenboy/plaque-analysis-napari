@@ -68,7 +68,7 @@ def _dish_ellipse(raw):
         if x == 0 or y == 0 or x + w >= small.shape[1] or y + h >= small.shape[0]:
             continue
         perimeter = cv2.arcLength(contour, True)
-        if 4 * np.pi * area / perimeter**2 >= 0.75:
+        if 4 * np.pi * area / perimeter**2 >= 0.50:
             candidates.append(contour)
     if not candidates:
         raise ValueError("Could not locate a complete round dish in the image.")

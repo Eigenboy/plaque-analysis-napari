@@ -63,8 +63,9 @@ Click **Edit boundary** to show the vertices. Drag a handle to move that part
 of the outline. Napari’s **Insert vertex** and **Remove vertex** tools let you
 add or remove handles. Use Napari’s **Pan/zoom** tool to return to navigation.
 
-If automatic detection fails, click **Draw boundary**. Hold down the left
-mouse button and trace the agar edge. Release to close the outline, then use
+If automatic detection fails, click **Draw boundary**, then click points
+along the agar edge to place vertices. **Undo** removes the most recent vertex
+while you draw. Click **Finish boundary** to close the outline, then use
 **Edit boundary** to adjust it or **Export agar mask** to save it.
 
 **Export agar mask** saves a TIFF to the `out` subfolder of the image's folder.

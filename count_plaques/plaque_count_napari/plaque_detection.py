@@ -4,6 +4,17 @@ import cv2
 import numpy as np
 
 
+def estimate_dish_diameter_px(agar_mask):
+    """Estimate detector scale from the main agar outline when the dish fit fails."""
+    outlines, _ = cv2.findContours(agar_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    area = max((cv2.contourArea(outline) for outline in outlines), default=0.0)
+    if area <= 0:
+        raise ValueError("The agar mask must enclose an area to estimate the dish size.")
+
+    # The exported agar boundary typically spans about 91% of the dish diameter.
+    return float(np.sqrt(4 * area / np.pi) / 0.91)
+
+
 def detect_plaques(image, agar_mask, dish_diameter_px):
     """Return filled plaque masks with positive integer IDs in image coordinates."""
     inside = agar_mask != 0

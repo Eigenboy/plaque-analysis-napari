@@ -19,7 +19,7 @@ from plaque_analysis_napari.agar_region import boundary_paths, dish_diameter_px
 from plaque_analysis_napari.plate_io import IMAGE_FILTER, agar_mask_path, display_limits, load_grayscale
 from plaque_analysis_napari.visibility_shortcut import register_visibility_shortcut
 
-from .plaque_detection import detect_plaques
+from .plaque_detection import detect_plaques, estimate_dish_diameter_px
 from .plaque_split import find_split_proposals, split_from_stroke
 from .plaque_statistics import export_plaque_statistics
 
@@ -28,7 +28,7 @@ from .plaque_statistics import export_plaque_statistics
 class PlateImage:
     path: Path
     image: np.ndarray
-    diameter_px: float
+    diameter_px: float | None
     mask_path: Path | None = None
     mask: np.ndarray | None = None
     contrast_limits: tuple[float, float] | None = None
@@ -52,7 +52,11 @@ def read_mask(path, shape):
 
 def read_plate(path):
     image = load_grayscale(path)
-    plate = PlateImage(path, image, dish_diameter_px(image))
+    try:
+        diameter_px = dish_diameter_px(image)
+    except ValueError:
+        diameter_px = None
+    plate = PlateImage(path, image, diameter_px)
     expected = agar_mask_path(path)
     if expected.is_file():
         try:
@@ -66,7 +70,10 @@ def read_plate(path):
 
 def count_from_files(plate, mask_path):
     mask = read_mask(mask_path, plate.image.shape)
-    labels = detect_plaques(plate.image, mask, plate.diameter_px)
+    diameter_px = plate.diameter_px
+    if diameter_px is None:
+        diameter_px = estimate_dish_diameter_px(mask)
+    labels = detect_plaques(plate.image, mask, diameter_px)
     return mask_path, mask, labels, find_split_proposals(labels, plate.image)
 
 
@@ -452,7 +459,10 @@ class CountControls(QWidget):
             count_from_files, (self.plate, path),
             self.show_plaques, "Could not count plaques.",
         )
-        self.status.setText("Detecting plaques inside the saved agar mask…")
+        if self.plate.diameter_px is None:
+            self.status.setText("Using the saved agar mask to estimate dish size and count plaques…")
+        else:
+            self.status.setText("Detecting plaques inside the saved agar mask…")
 
     def show_plaques(self, result):
         if self.image_layer is None:

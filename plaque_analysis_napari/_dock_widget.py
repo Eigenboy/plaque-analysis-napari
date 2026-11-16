@@ -43,6 +43,7 @@ class PlateControls(QWidget):
         self.image_layer = None
         self.boundary_layer = None
         self.initial_paths = []
+        self.draft_vertices = None
         self.worker = None
         self.last_folder = Path.home()
 
@@ -66,6 +67,11 @@ class PlateControls(QWidget):
         self.draw_button = QPushButton("Draw boundary")
         self.draw_button.clicked.connect(self.draw_boundary)
         layout.addWidget(self.draw_button)
+
+        self.undo_button = QPushButton("Undo")
+        self.undo_button.setToolTip("Remove the most recent vertex while drawing.")
+        self.undo_button.clicked.connect(self.undo_boundary_vertex)
+        layout.addWidget(self.undo_button)
 
         self.export_button = QPushButton("Export agar mask")
         self.export_button.setEnabled(False)
@@ -142,20 +148,23 @@ class PlateControls(QWidget):
         )
         self.boundary_layer.events.visible.connect(self.sync_controls)
         self.boundary_layer.events.data.connect(self.sync_controls)
+        self.boundary_layer.mouse_drag_callbacks.append(self.place_boundary_vertex)
 
     def _layer_removed(self, event):
         if event.value == self.boundary_layer:
             self.boundary_layer.events.visible.disconnect(self.sync_controls)
             self.boundary_layer.events.data.disconnect(self.sync_controls)
+            self.boundary_layer.mouse_drag_callbacks.remove(self.place_boundary_vertex)
             self.boundary_layer = None
+            self.draft_vertices = None
         self.sync_controls()
 
     def sync_controls(self, event=None):
         layer = self.boundary_layer
         enabled = layer is not None
         visible = enabled and layer.visible
-        # Napari's lasso starts out as an open path and becomes a polygon on completion.
-        complete = enabled and layer.nshapes > 0 and "path" not in layer.shape_type
+        drawing = self.draft_vertices is not None
+        complete = enabled and not drawing and layer.nshapes > 0 and "path" not in layer.shape_type
         with QSignalBlocker(self.boundary_button):
             self.boundary_button.setEnabled(enabled)
             self.boundary_button.setChecked(visible)
@@ -164,12 +173,19 @@ class PlateControls(QWidget):
             )
         idle = self.worker is None
         self.open_button.setEnabled(idle)
-        self.draw_button.setEnabled(self.plate is not None and idle and not complete)
+        self.draw_button.setText("Finish boundary" if drawing else "Draw boundary")
+        can_start = self.plate is not None and (layer is None or layer.nshapes == 0)
+        can_finish = drawing and len(self.draft_vertices) >= 3
+        self.draw_button.setEnabled(idle and (can_finish if drawing else can_start))
+        self.undo_button.setEnabled(idle and bool(self.draft_vertices))
         self.edit_button.setEnabled(complete and idle)
         self.export_button.setEnabled(complete and idle)
 
     def draw_boundary(self):
         if not self.draw_button.isEnabled():
+            return
+        if self.draft_vertices is not None:
+            self.finish_boundary()
             return
         if self.boundary_layer is None:
             self.initial_paths = []
@@ -178,8 +194,53 @@ class PlateControls(QWidget):
         self.viewer.dims.ndisplay = 2
         layer.visible = True
         self.viewer.layers.selection.active = layer
-        layer.mode = "add_polygon_lasso"
-        self.status.setText("Hold and drag to trace the agar edge, then release to close the outline.")
+        layer.mode = "pan_zoom"
+        self.draft_vertices = []
+        self.status.setText("Click along the agar edge to place vertices, then click Finish boundary.")
+        self.sync_controls()
+
+    def place_boundary_vertex(self, layer, event):
+        if (self.draft_vertices is None or self.worker is not None
+                or event.button != 1 or not layer.visible or layer.mode != "pan_zoom"):
+            return
+        vertex = layer.world_to_data(event.position)
+        press_position = np.asarray(event.pos)
+        dragged = False
+        yield
+        while event.type == "mouse_move":
+            if np.linalg.norm(np.asarray(event.pos) - press_position) > 3:
+                dragged = True
+            yield
+        if (dragged or event.type != "mouse_release" or layer != self.boundary_layer
+                or self.draft_vertices is None or not layer.visible):
+            return
+        if self.draft_vertices and np.allclose(vertex, self.draft_vertices[-1]):
+            return
+        self.draft_vertices.append(vertex)
+        self.update_boundary_preview()
+
+    def undo_boundary_vertex(self):
+        if self.draft_vertices:
+            self.draft_vertices.pop()
+            self.update_boundary_preview()
+
+    def update_boundary_preview(self):
+        vertices = self.draft_vertices
+        data = [np.asarray(vertices)] if len(vertices) >= 2 else []
+        self.boundary_layer.data = (data, "path")
+        self.status.setText(
+            f"Vertices placed: {len(vertices)}. Click along the edge, then click Finish boundary."
+        )
+        self.sync_controls()
+
+    def finish_boundary(self):
+        vertices = np.asarray(self.draft_vertices, dtype=np.float32)
+        if cv2.contourArea(vertices[:, ::-1]) <= 0:
+            self.status.setText("Place vertices around the agar so the outline encloses an area.")
+            return
+        self.draft_vertices = None
+        self.boundary_layer.data = ([vertices], "polygon")
+        self.status.setText("Boundary drawn. Edit the vertices or export the agar mask.")
         self.sync_controls()
 
     def edit_boundary(self):
@@ -207,7 +268,7 @@ class PlateControls(QWidget):
         layer = self.boundary_layer
         if layer is None:
             raise ValueError("No agar boundary is available.")
-        if not layer.nshapes or "path" in layer.shape_type:
+        if self.draft_vertices is not None or not layer.nshapes or "path" in layer.shape_type:
             raise ValueError("Draw and close the agar boundary before exporting.")
 
         # Napari's transform tool can move the whole layer. Convert its vertices
